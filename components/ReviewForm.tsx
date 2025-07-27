@@ -1,315 +1,202 @@
 'use client'
 
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { User, Mail, Phone, MessageSquare, CheckSquare, Send, CheckCircle } from 'lucide-react'
-import SmileyRating from './SmileyRating'
-import MandatoryImageUploader from './MandatoryImageUploader' // Or your optional uploader
-import LocationDetector from './LocationDetector' // Or your improved LocationInput
+import { useState, useEffect } from 'react'
 
-// Define Location type
-type Location = {
-  latitude: number
-  longitude: number
-  address: string
-}
+export default function SubmitReview() {
+  type FormState = {
+    name: string
+    phone: string
+    remarks: string
+    images: File[]
+  }
 
-// Zod schema for form validation
-const reviewSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('A valid email is required'),
-  phone: z.string().min(10, 'A valid 10-digit phone number is required'),
-  rating: z.number().min(1, 'Rating is required').max(10),
-  reason_ids: z.array(z.number()),
-  description: z.string().optional(),
-  images: z.array(z.instanceof(File)).optional(), // Images are optional
-  location: z.object({
-    latitude: z.number(),
-    longitude: z.number(),
-    address: z.string()
-  }).nullable()
-})
-
-type ReviewFormData = z.infer<typeof reviewSchema>
-
-// --- NEW: Common washroom issues for the Indian context ---
-const commonIndianWashroomIssues = [
-  // Cleanliness & Hygiene
-  { id: 1, text: 'Dirty or unflushed toilets (Western or Indian)' },
-  { id: 2, text: 'Wet, slippery, or muddy floors' },
-  { id: 3, text: 'Unpleasant or strong odor' },
-  { id: 4, text: 'Paan / Gutka spit stains' },
-  { id: 5, text: 'Overflowing dustbins' },
-  { id: 6, text: 'General grime (stained walls, dirty mirrors)' },
-  // Water & Fixtures
-  { id: 7, text: 'No water in taps or for flush' },
-  { id: 8, text: 'Leaking taps, pipes, or cisterns' },
-  { id: 9, text: 'Broken or missing health faucet (jet spray)' },
-  { id: 10, text: 'No mug or lota available' },
-  { id: 11, text: 'Broken or missing toilet seat' },
-  { id: 12, text: 'Faulty or broken door lock/latch' },
-  { id: 13, text: 'Low water pressure' },
-  // Supplies & Amenities
-  { id: 14, text: 'No hand-washing soap' },
-  { id: 15, text: 'No toilet paper available' },
-  { id: 16, text: 'Faulty hand dryer or no paper towels' },
-  { id: 17, text: 'Poor or no lighting' },
-  { id: 18, text: 'No hooks for bags or clothes' },
-  { id: 19, text: 'Poor ventilation (no fan or window)' }
-];
-
-export default function ReviewForm() {
-  const [images, setImages] = useState<File[]>([])
-  const [location, setLocation] = useState<Location | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isValid }, // Use isValid for button state
-    setValue,
-    watch,
-    reset,
-    trigger
-  } = useForm<ReviewFormData>({
-    resolver: zodResolver(reviewSchema),
-    mode: 'onChange', // Validate on change for better UX
-    defaultValues: {
-      rating: 0,
-      reason_ids: [],
-      description: '',
-      images: [],
-      location: null
-    }
+  const [form, setForm] = useState<FormState>({
+    name: '',
+    phone: '',
+    remarks: '',
+    images: [],
   })
+  const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [previews, setPreviews] = useState<string[]>([])
+  const [success, setSuccess] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Watch for changes to update UI or logic
-  const rating = watch('rating')
-  const selectedReasons = watch('reason_ids')
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLocationCoords({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          })
+        },
+        (err) => {
+          console.warn('Geolocation not allowed:', err)
+        }
+      )
+    }
+  }, [])
 
-  // Set form values manually when state changes
-  const handleImagesChange = (newImages: File[]) => {
-    setImages(newImages)
-    setValue('images', newImages, { shouldValidate: true })
+  const handleChange = (e: { target: { name: any; value: any } }) => {
+    setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  const handleLocationChange = (newLocation: Location | null) => {
-    setLocation(newLocation)
-    setValue('location', newLocation, { shouldValidate: true })
-  }
-  
-  const handleRatingChange = (newRating: number) => {
-      setValue('rating', newRating, { shouldValidate: true });
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []) as File[]
+    setForm({ ...form, images: files })
+
+    const previews = files.map((file) => URL.createObjectURL(file))
+    setPreviews(previews)
   }
 
-  const handleReasonToggle = (reasonId: number) => {
-    const updatedReasons = selectedReasons.includes(reasonId)
-      ? selectedReasons.filter(id => id !== reasonId)
-      : [...selectedReasons, reasonId]
-    setValue('reason_ids', updatedReasons)
+  const removeImage = (index: number) => {
+    const newFiles = [...form.images]
+    const newPreviews = [...previews]
+    newFiles.splice(index, 1)
+    newPreviews.splice(index, 1)
+
+    setForm({ ...form, images: newFiles })
+    setPreviews(newPreviews)
   }
 
-  const onSubmit = async (data: ReviewFormData) => {
-    if (!data.location) {
-        alert('Please set a location to submit your review.');
-        return;
+  const handleSubmit = async (e: { preventDefault: () => void }) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    if (!form.name || !form.phone) {
+      setError('Name and phone number are required.')
+      setLoading(false)
+      return
     }
 
-    setIsSubmitting(true)
-    
     try {
-      const formData = new FormData()
-      
-      // Append all form data
-      formData.append('name', data.name)
-      formData.append('email', data.email)
-      formData.append('phone', data.phone)
-      formData.append('rating', data.rating.toString())
-      formData.append('description', data.description || '')
-      formData.append('reason_ids', JSON.stringify(data.reason_ids))
-      
-      // Append location data safely
-      formData.append('latitude', data.location.latitude.toString())
-      formData.append('longitude', data.location.longitude.toString())
-      formData.append('address', data.location.address)
-      
-      // Append images
-      formData.append('imageCount', data.images?.length.toString() || '0')
-      data.images?.forEach((image, index) => {
-        formData.append(`image_${index}`, image)
-      })
-      
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
-      const response = await fetch(`${apiUrl}/api/reviews`, {
+      const base64Images = await Promise.all(
+        form.images.map((file) => {
+          return new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result)
+            reader.readAsDataURL(file)
+          })
+        })
+      )
+
+      const res = await fetch('http://localhost:5000/cleaner-reviews', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_id: 1, // hardcoded for now; update if needed
+          name: form.name,
+          phone: form.phone,
+          remarks: form.remarks,
+          images: base64Images,
+          location: locationCoords,
+        }),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to submit review')
-      }
+      if (!res.ok) throw new Error('Submission failed')
 
-      // --- Success ---
-      setShowSuccess(true)
-      reset()
-      setImages([])
-      setLocation(null)
-      
-      setTimeout(() => setShowSuccess(false), 5000)
-
-    } catch (error) {
-      console.error('Error submitting review:', error)
-      alert('Failed to submit review. Please try again.')
+      setSuccess(true)
+      setForm({ name: '', phone: '', remarks: '', images: [] })
+      setPreviews([])
+    } catch (err) {
+      setError('Something went wrong. Please try again.')
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
-  }
-  
-  if (showSuccess) {
-    return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-          <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-6" />
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Thank You!</h2>
-          <p className="text-gray-600 mb-8 text-lg">
-            Your washroom review has been submitted successfully. Thank you for helping improve public facilities!
-          </p>
-          <button
-            onClick={() => setShowSuccess(false)}
-            className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Submit Another Review
-          </button>
-        </div>
-      </div>
-    )
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-6">
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-8 text-white">
-          <h1 className="text-3xl font-bold mb-3">Public Washroom Review</h1>
-          <p className="text-blue-100 text-lg">Help others by sharing your washroom experience.</p>
-        </div>
+     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
+      <div className="bg-white shadow-xl rounded-lg w-full max-w-2xl p-8 space-y-6">
+        <h2 className="text-3xl font-bold text-gray-800 text-center">Submit Cleanliness Review</h2>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 sm:p-8 space-y-8">
-          
-          {/* --- Use your improved LocationInput component --- */}
-          <LocationDetector 
-            location={location} 
-            onLocationChange={handleLocationChange}
-          />
-          {errors.location && (
-             <p className="text-red-500 text-xs mt-1">Location is a required field.</p>
+        {success && (
+          <div className="bg-green-100 text-green-700 px-4 py-3 rounded relative text-sm">
+            ✅ Your review has been submitted successfully!
+          </div>
+        )}
+        {error && (
+          <div className="bg-red-100 text-red-700 px-4 py-3 rounded relative text-sm">
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block font-medium text-sm text-gray-700">Name *</label>
+            <input
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              required
+              className="mt-1 w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium text-sm text-gray-700">Phone *</label>
+            <input
+              name="phone"
+              type="tel"
+              value={form.phone}
+              onChange={handleChange}
+              required
+              className="mt-1 w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium text-sm text-gray-700">Remarks</label>
+            <textarea
+              name="remarks"
+              rows={3}
+              value={form.remarks}
+              onChange={handleChange}
+              className="mt-1 w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium text-sm text-gray-700">Upload Images</label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageChange}
+              className="mt-1 block w-full text-sm"
+            />
+            {previews.length > 0 && (
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                {previews.map((src, index) => (
+                  <div key={index} className="relative group">
+                    <img src={src} alt="" className="rounded-md shadow" />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute top-1 right-1 bg-red-600 text-white text-xs rounded-full px-2 py-1 opacity-80 hover:opacity-100"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {locationCoords && (
+            <div className="text-sm text-gray-500">
+              Location: {locationCoords.lat.toFixed(4)}, {locationCoords.lng.toFixed(4)}
+            </div>
           )}
 
-          {/* Personal Information */}
-          <div className="grid md:grid-cols-3 gap-6">
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-2"><User className="h-4 w-4 mr-1" /> Name *</label>
-              <input
-                {...register('name')}
-                type="text"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Your full name"
-              />
-              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
-            </div>
-
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-2"><Mail className="h-4 w-4 mr-1" /> Email *</label>
-              <input
-                {...register('email')}
-                type="email"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="your.email@example.com"
-              />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
-            </div>
-
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-2"><Phone className="h-4 w-4 mr-1" /> Phone *</label>
-              <input
-                {...register('phone')}
-                type="tel"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="10-digit mobile number"
-              />
-              {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>}
-            </div>
-          </div>
-
-          {/* Rating */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-4">Overall Rating *</label>
-            <SmileyRating
-              rating={rating}
-              onRatingChange={handleRatingChange}
-              size={32}
-            />
-            {errors.rating && <p className="text-red-500 text-xs mt-2">{errors.rating.message}</p>}
-          </div>
-
-          {/* --- Use your OptionalImageUploader component --- */}
-          <MandatoryImageUploader
-            images={images}
-            onImagesChange={handleImagesChange}
-          />
-          {errors.images && <p className="text-red-500 text-xs mt-1">{errors.images.message}</p>}
-
-          {/* Issues Checklist */}
-          <div>
-            <label className="flex items-center text-sm font-medium text-gray-700 mb-4"><CheckSquare className="h-4 w-4 mr-1" /> Select Observed Issues (Optional):</label>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {/* --- MAPPED NEW LIST --- */}
-              {commonIndianWashroomIssues.map((reason) => (
-                <label key={reason.id} className="flex items-start space-x-3 p-4 rounded-lg border hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedReasons.includes(reason.id)}
-                    onChange={() => handleReasonToggle(reason.id)}
-                    className="mt-0.5 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">{reason.text}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Detailed Review */}
-          <div>
-            <label className="flex items-center text-sm font-medium text-gray-700 mb-2"><MessageSquare className="h-4 w-4 mr-1" /> Additional Comments (Optional)</label>
-            <textarea
-              {...register('description')}
-              rows={4}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Share more details about your experience..."
-            />
-          </div>
-
-          {/* Submit Button */}
           <button
             type="submit"
-            disabled={isSubmitting || !isValid}
-            className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-lg"
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-200"
           >
-            {isSubmitting ? (
-              <>
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                <span>Submitting Review...</span>
-              </>
-            ) : (
-              <>
-                <Send className="h-6 w-6" />
-                <span>Submit Review</span>
-              </>
-            )}
+            {loading ? 'Submitting...' : 'Submit Review'}
           </button>
         </form>
       </div>
