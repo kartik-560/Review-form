@@ -1,15 +1,15 @@
-'use client'
+"use client";
 
-import { useState, useRef } from 'react'
-import { Camera, X, Upload, CheckCircle } from 'lucide-react'
-import imageCompression from 'browser-image-compression'
-import Image from 'next/image'
+import { useState, useRef } from "react";
+import { Camera, X, Upload, CheckCircle } from "lucide-react";
+import imageCompression from "browser-image-compression";
+import Image from "next/image";
 
 interface OptionalImageUploaderProps {
-  images: File[]
-  onImagesChange: (images: File[]) => void
-  maxImages?: number
-  maxSizeKB?: number
+  images: File[];
+  onImagesChange: (images: File[]) => void;
+  maxImages?: number;
+  maxSizeKB?: number;
 }
 
 export default function OptionalImageUploader({
@@ -18,104 +18,103 @@ export default function OptionalImageUploader({
   maxImages = 3,
   maxSizeKB = 300,
 }: OptionalImageUploaderProps) {
-  const [loading, setLoading] = useState(false)
-  const [compressionStatus, setCompressionStatus] = useState<string>('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const [loading, setLoading] = useState(false);
+  const [compressionStatus, setCompressionStatus] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const compressImage = async (file: File): Promise<File> => {
     const options = {
       maxSizeMB: maxSizeKB / 1024,
       maxWidthOrHeight: 1920,
       useWebWorker: true,
-      fileType: 'image/jpeg',
+      fileType: "image/jpeg",
       initialQuality: 0.8,
-    }
+    };
 
     try {
-      const compressedFile = await imageCompression(file, options)
-      return compressedFile
+      const compressedFile = await imageCompression(file, options);
+      return compressedFile;
     } catch (error) {
-      console.error('Compression error:', error)
-      throw new Error('Failed to compress image')
+      console.error("Compression error:", error);
+      throw new Error("Failed to compress image");
     }
-  }
+  };
 
   const handleFileSelect = async (files: FileList | null) => {
-    if (!files) return
+    if (!files) return;
 
-    const remainingSlots = maxImages - images.length
+    const remainingSlots = maxImages - images.length;
     if (remainingSlots <= 0) {
-      alert(`Maximum ${maxImages} images allowed`)
-      return
+      alert(`Maximum ${maxImages} images allowed`);
+      return;
     }
 
-    setLoading(true)
-    setCompressionStatus('Processing images...')
-    const newImages: File[] = []
+    setLoading(true);
+    setCompressionStatus("Processing images...");
+    const newImages: File[] = [];
 
     try {
       for (let i = 0; i < Math.min(files.length, remainingSlots); i++) {
-        const file = files[i]
+        const file = files[i];
 
-        if (!file.type.startsWith('image/')) {
-          alert(`File "${file.name}" is not an image`)
-          continue
+        if (!file.type.startsWith("image/")) {
+          alert(`File "${file.name}" is not an image`);
+          continue;
         }
 
-        setCompressionStatus(`Compressing ${file.name}...`)
+        setCompressionStatus(`Compressing ${file.name}...`);
 
-        const compressedFile = await compressImage(file)
+        const compressedFile = await compressImage(file);
         const renamedFile = new File([compressedFile], file.name, {
           type: compressedFile.type,
           lastModified: Date.now(),
-        })
+        });
 
-        newImages.push(renamedFile)
+        newImages.push(renamedFile);
       }
 
-      onImagesChange([...images, ...newImages])
-      setCompressionStatus('Images compressed successfully!')
+      onImagesChange([...images, ...newImages]);
+      setCompressionStatus("Images compressed successfully!");
 
-      setTimeout(() => setCompressionStatus(''), 3000)
+      setTimeout(() => setCompressionStatus(""), 3000);
     } catch (error) {
-      console.error('Error processing images:', error)
-      alert('Error processing images. Please try again.')
-      setCompressionStatus('')
+      console.error("Error processing images:", error);
+      alert("Error processing images. Please try again.");
+      setCompressionStatus("");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const removeImage = (index: number) => {
-    const updatedImages = images.filter((_, i) => i !== index)
-    onImagesChange(updatedImages)
-  }
+    const updatedImages = images.filter((_, i) => i !== index);
+    onImagesChange(updatedImages);
+  };
 
   const openFileDialog = () => {
-    fileInputRef.current?.click()
-  }
+    fileInputRef.current?.click();
+  };
 
   const openCamera = () => {
-    cameraInputRef.current?.click()
-  }
+    cameraInputRef.current?.click();
+  };
 
-  const canAddMore = images.length < maxImages
+  const canAddMore = images.length < maxImages;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <label className="flex items-center text-sm font-medium text-gray-700">
           <Camera className="h-4 w-4 mr-1" />
-          {/* Label updated to show it's optional */}
+          
           Upload Photos (Optional - Max {maxImages})
         </label>
-        <span className="text-xs text-gray-500">
+        {/* <span className="text-xs text-gray-500">
           Max {maxSizeKB}KB each (auto-compressed)
-        </span>
+        </span> */}
       </div>
 
-      {/* Upload Buttons */}
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
@@ -138,7 +137,6 @@ export default function OptionalImageUploader({
         </button>
       </div>
 
-      {/* Hidden File Inputs */}
       <input
         ref={fileInputRef}
         type="file"
@@ -160,7 +158,6 @@ export default function OptionalImageUploader({
         title="Take a photo"
       />
 
-      {/* Status Messages */}
       {loading && (
         <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -175,9 +172,6 @@ export default function OptionalImageUploader({
         </div>
       )}
 
-      {/* Requirement Status block has been removed */}
-
-      {/* Image Previews */}
       {images.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {images.map((image, index) => (
@@ -188,13 +182,14 @@ export default function OptionalImageUploader({
                 width={400}
                 height={400}
                 style={{
-                  objectFit: 'cover',
-                  width: '100%',
-                  height: '100%',
-                  borderRadius: '0.5rem', // Match the parent div's rounded-lg
+                  objectFit: "cover",
+                  width: "100%",
+                  height: "250px", 
+                  borderRadius: "0.5rem",
                 }}
                 unoptimized
               />
+
               <button
                 type="button"
                 title="Remove image"
@@ -217,5 +212,5 @@ export default function OptionalImageUploader({
         </div>
       )}
     </div>
-  )
+  );
 }

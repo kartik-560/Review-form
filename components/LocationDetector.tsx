@@ -2,15 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { MapPin, Loader2, AlertCircle } from 'lucide-react'
-// import type { Location } from '@/types/review'
-// GeolocationPosition and GeolocationPositionError are available globally in TypeScript
-
-
 
 interface LocationDetectorProps {
   onLocationChange: (location: Location | null) => void
   location: Location | null
 }
+
 export interface Location {
   latitude: number
   longitude: number
@@ -65,6 +62,24 @@ export default function LocationDetector({ onLocationChange, location }: Locatio
       }
 
       onLocationChange(locationData)
+
+      // Save to backend
+      try {
+        const res = await fetch('http://localhost:5000/locations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: address.split(',')[0], 
+            address
+          })
+        })
+
+        if (!res.ok) {
+          console.error('Failed to save location to DB')
+        }
+      } catch (submitError) {
+        console.error('Location submission error:', submitError)
+      }
     } catch (err) {
       const errorObj = err as GeolocationPositionError
       switch (errorObj.code) {
